@@ -138,7 +138,7 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
-
+  p->tickets =1;
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -325,7 +325,7 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   struct pstat *ps;
-
+  struct proc *win;
   c->proc = 0;
   
   for(;;){
@@ -334,15 +334,22 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+    int i=0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
       if(p->state != RUNNABLE)
         continue;
       else
       {
         // assume that winner is the winning lottery number
         int winner;
+
         int current =0;
-        current = current + pstat[i]->tickets;
+        current = current + ps->tickets[i];
+        if (current > winner)
+        {
+          win = p;
+        }
       }
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -357,6 +364,7 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+      i++;
     }
     release(&ptable.lock);
 
