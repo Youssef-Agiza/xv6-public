@@ -324,6 +324,8 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  struct pstat *ps;
+
   c->proc = 0;
   
   for(;;){
@@ -335,7 +337,13 @@ scheduler(void)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
-
+      else
+      {
+        // assume that winner is the winning lottery number
+        int winner;
+        int current =0;
+        current = current + pstat[i]->tickets;
+      }
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
