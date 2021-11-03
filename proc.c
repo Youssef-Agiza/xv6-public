@@ -6,6 +6,8 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "stdio.h"
+#include "stdlib.h"
 
 struct {
   struct spinlock lock;
@@ -200,6 +202,10 @@ fork(void)
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
+  //inherits tickets
+  np->tickets=curproc->tickets;
+  np->totalTickets=curproc->totalTickets;
+
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -325,7 +331,7 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   struct pstat *ps;
-  struct proc *win;
+  // struct proc *win;
   c->proc = 0;
   
   for(;;){
@@ -342,23 +348,36 @@ scheduler(void)
       else
       {
         // assume that winner is the winning lottery number
-        int winner;
+        int winner=get_rand(p->totalTickets);
 
-        int current =0;
-        current = current + ps->tickets[i];
-        if (current > winner)
+        int tcount =0;
+        tcount = tcount + ps->tickets[i];
+        if (tcount > winner)
         {
-          win = p;
+          // win = p;
+         c->proc = p;
+
+          break;
         }
+        
       }
+
+      /*
+           //\\           ======        ====
+          //  \\        //      \\       ||
+         //    \\      //                ||
+        //||||||\\    ||         ===     ||
+       //        \\    \\         //     ||
+      //          \\     ==========    =====
+      
+       */
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
 
-      swtch(&(c->scheduler), p->context);
+      swtch(&(c->scheduget_random_bytesler), p->context);
       switchkvm();
 
       // Process is done running for now.
@@ -547,4 +566,12 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+
+ int get_rand(unsigned int lessthan)
+{
+    unsigned int num;
+    num = (rand() % lessthan) + 1;
+    return num;
 }
