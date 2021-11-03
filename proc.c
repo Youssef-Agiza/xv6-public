@@ -335,6 +335,25 @@ scheduler(void)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
+<<<<<<< Updated upstream
+=======
+      else
+      {
+        // assume that winner is the winning lottery number
+        unsigned int winner=get_rand(p->totalTickets);
+
+        int tcount =0;
+        tcount = tcount + ps->tickets[i];
+        if (tcount > winner)
+        {
+          // win = p;
+         c->proc = p;
+
+          break;
+        }
+        
+      }
+>>>>>>> Stashed changes
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -532,3 +551,17 @@ procdump(void)
     cprintf("\n");
   }
 }
+<<<<<<< Updated upstream
+=======
+
+
+static unsigned long temp = 1;
+
+unsigned int get_rand(int max) {
+    const unsigned long a = 1103515245, c = 12345; //constants 
+    #define m 0x80000000
+    unsigned int num = (temp % max) + 1;  // num = a random number from 1 to the value of max
+    temp = (a * temp + c) % m;
+    return num;
+}
+>>>>>>> Stashed changes
