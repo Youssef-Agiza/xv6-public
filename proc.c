@@ -7,7 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "stdio.h"
-#include "stdlib.h"
+// #include "stdlib.h"
 
 struct {
   struct spinlock lock;
@@ -377,7 +377,7 @@ scheduler(void)
       switchuvm(p);
       p->state = RUNNING;
 
-      swtch(&(c->scheduget_random_bytesler), p->context);
+      swtch(&(c->scheduler), p->context);
       switchkvm();
 
       // Process is done running for now.
