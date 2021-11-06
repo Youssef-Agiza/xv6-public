@@ -5,7 +5,62 @@
 #include "param.h"
 #include "memlayout.h"
 #include "mmu.h"
+// #include "spinlock.h"
 #include "proc.h"
+// #include "pstat.h"
+
+
+
+
+int sys_settickets(void){
+    int number;
+
+    if(argint(0,&number)<0)
+            return -1;
+
+    if(number<1)
+         return -1;
+         
+  struct proc * p=myproc();
+  acquire(&ptable.lock);
+  _settickets(p,number);
+  release(&ptable.lock);
+
+
+  return 0;
+}
+
+int sys_getpinfo(void){
+
+   struct pstat * state;
+  struct proc * p;
+  
+
+  if(argptr(0,(void*)&state,sizeof(*state))<0)
+     return -1;
+  
+  if(!state)//state is NULL
+    return -1;
+
+  acquire(&ptable.lock);
+  for(p=ptable.proc; p<&ptable.proc[NPROC]; p++)
+  {
+    
+    int indx= p-ptable.proc;//index= current process pointer- process at the beginning of ptable
+    if(p->state!=UNUSED){
+      state->pid[indx]=p->pid;     // the PID of each process
+      state->inuse[indx]=p->inuse;   //whether this slot of the process table is inuse(1or0) 
+      state->tickets[indx]=p->tickets; // the number of tickets this process has
+      state->ticks[indx]=p->ticks;   //the number of ticks each process has accumulated
+    }
+
+  }
+  release(&ptable.lock);
+
+  return 0;
+       
+}
+
 
 int
 sys_fork(void)

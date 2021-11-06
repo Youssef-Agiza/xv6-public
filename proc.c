@@ -5,18 +5,24 @@
 #include "mmu.h"
 #include "x86.h"
 #include "proc.h"
-#include "spinlock.h"
-#include "stdio.h"
-// #include "stdlib.h"
+// #include "spinlock.h"
+// #include <sys/random.h> 
 
-struct {
-  struct spinlock lock;
-  struct proc proc[NPROC];
-} ptable;
+ unsigned short lfsr = 0xACE1u;
+  unsigned bit;
+
+  unsigned rand()
+  {
+    bit  = ((lfsr >> 0) ^ (lfsr >> 2) ^ (lfsr >> 3) ^ (lfsr >> 5) ) & 1;
+    return lfsr =  (lfsr >> 1) | (bit << 15);
+  }
+
+
 
 static struct proc *initproc;
 
 int nextpid = 1;
+int totalTickets=0;
 extern void forkret(void);
 extern void trapret(void);
 
@@ -33,6 +39,7 @@ int
 cpuid() {
   return mycpu()-cpus;
 }
+
 
 // Must be called with interrupts disabled to avoid the caller being
 // rescheduled between reading lapicid and running through the loop.
@@ -53,6 +60,15 @@ mycpu(void)
   }
   panic("unknown apicid\n");
 }
+
+//helper function that sets the tickets of p to number & updates total tickets.
+void _settickets( struct proc * p,int number){
+   
+    totalTickets+= (number)- (p->tickets);
+    p->tickets= number;
+
+}
+
 
 // Disable interrupts so that we are not rescheduled
 // while reading proc from the cpu structure
@@ -140,7 +156,7 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
-  p->tickets =1;
+  //p->tickets =1;
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -154,7 +170,6 @@ userinit(void)
 
   release(&ptable.lock);
 }
-
 // Grow current process's memory by n bytes.
 // Return 0 on success, -1 on failure.
 int
@@ -203,8 +218,7 @@ fork(void)
   *np->tf = *curproc->tf;
 
   //inherits tickets
-  np->tickets=curproc->tickets;
-  np->totalTickets=curproc->totalTickets;
+  _settickets(np,curproc->tickets);
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -301,10 +315,16 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+
+        //clear ticks tickets before exiting.
+        p->ticks=0;
+        _settickets(p,0);
+
         release(&ptable.lock);
         return pid;
       }
     }
+
 
     // No point waiting if we don't have any children.
     if(!havekids || curproc->killed){
@@ -330,61 +350,59 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  struct pstat *ps;
-  // struct proc *win;
   c->proc = 0;
+
+    acquire(&ptable.lock);
+  _settickets(ptable.proc,1);
+    release(&ptable.lock);
   
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
+      // assume that winner is the winning lottery number
+      int winner= rand()% (totalTickets +1);
+      int tcount =0;
+
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    int i=0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 
       if(p->state != RUNNABLE)
         continue;
-      else
-      {
-        // assume that winner is the winning lottery number
-        int winner=get_rand(p->totalTickets);
 
-        int tcount =0;
-        tcount = tcount + ps->tickets[i];
-        if (tcount > winner)
-        {
-          // win = p;
-         c->proc = p;
-
-          break;
-        }
-        
-      }
-
-      /*
-           //\\           ======        ====
-          //  \\        //      \\       ||
-         //    \\      //                ||
-        //||||||\\    ||         ===     ||
-       //        \\    \\         //     ||
-      //          \\     ==========    =====
+      tcount+=p->tickets;
       
-       */
+      if (tcount < winner)
+          continue;
+      
+      c->proc = p;
+
+      
+
+
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       switchuvm(p);
       p->state = RUNNING;
+      p->inuse=1;
 
+      const int initialTicks=ticks;
+
+      
       swtch(&(c->scheduler), p->context);
+      p->ticks+=ticks-initialTicks;//increment ticks 
+
+      p->inuse=0;//process not inuse
       switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-      i++;
+      break;
     }
+  
     release(&ptable.lock);
 
   }
@@ -473,11 +491,13 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  totalTickets-=p->tickets;
 
   sched();
 
   // Tidy up.
   p->chan = 0;
+  
 
   // Reacquire original lock.
   if(lk != &ptable.lock){  //DOC: sleeplock2
@@ -496,7 +516,10 @@ wakeup1(void *chan)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan)
-      p->state = RUNNABLE;
+   {   
+     totalTickets+=p->tickets;
+     p->state = RUNNABLE;
+   }
 }
 
 // Wake up all processes sleeping on chan.
@@ -522,7 +545,11 @@ kill(int pid)
       p->killed = 1;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
-        p->state = RUNNABLE;
+       { 
+        totalTickets+=p->tickets;
+         p->state = RUNNABLE;
+       
+       }
       release(&ptable.lock);
       return 0;
     }
@@ -568,10 +595,3 @@ procdump(void)
   }
 }
 
-
- int get_rand(unsigned int lessthan)
-{
-    unsigned int num;
-    num = (rand() % lessthan) + 1;
-    return num;
-}

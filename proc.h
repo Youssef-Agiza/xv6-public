@@ -1,3 +1,8 @@
+#ifndef PROC_H
+#define PROC_H
+
+#include "spinlock.h"
+#include "pstat.h"
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -32,12 +37,7 @@ struct context {
   uint eip;
 };
 
-struct pstat {
-int inuse[NPROC]; //whether this slot of the process table is inuse(1or0) 
-int tickets[NPROC]; // the number of tickets this process has
-int pid[NPROC]; // the PID of each process
-int ticks[NPROC]; //the number of ticks each process has accumulated
-};
+
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -54,11 +54,23 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
-  char name[16];              // Process name (debugging)
+  char name[16];               // Process name (debugging)
+  
+  
+  //lottery
   int tickets;                 // number of tickets
-  int totalTickets;             //total tickets in system
+  int ticks;                   //number of times it was used
+  int inuse;                   //wether or not a process is being uses(0/1)
+
 };
 
+
+struct {
+  struct spinlock lock;
+  struct proc proc[NPROC];
+} ptable;
+
+extern void _settickets(struct proc* p, int number);
 
 
 // Process memory is laid out contiguously, low addresses first:
@@ -66,3 +78,5 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+#endif //PROC_H

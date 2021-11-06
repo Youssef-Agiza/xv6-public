@@ -4,6 +4,7 @@ struct file;
 struct inode;
 struct pipe;
 struct proc;
+struct pstat;
 struct rtcdate;
 struct spinlock;
 struct sleeplock;
@@ -189,6 +190,9 @@ void            clearpteu(pde_t *pgdir, char *uva);
 
 int             get_rand(unsigned int max);
 
+//proc.c
+int             settickets(int number);
+int             getpinfo(struct pstat*);
 
 
 
